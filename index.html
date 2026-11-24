@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#f15b22">
 <title>IcEfOzxy Topup Status</title>
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
 <style>
 *{box-sizing:border-box}
 body{
@@ -36,6 +37,7 @@ h1{font-size:25px;color:#ed6028;margin:5px}
 .details{
  display:none;background:#fff8f1;border-radius:12px;
  padding:14px;margin-top:12px;font-size:13px;line-height:1.9;
+ overflow-wrap:anywhere;
 }
 .details.show{display:block}
 .small{font-size:12px;color:#987e70}
@@ -43,8 +45,10 @@ footer{text-align:center;color:#a28c7d;font-size:12px;margin:30px 0}
 button:focus-visible{outline:3px solid #f15b22}
 </style>
 </head>
+
 <body>
 <div class="container">
+
 <header>
  <div class="logo">🦊</div>
  <h1>IcEfOzxy Topup</h1>
@@ -53,25 +57,31 @@ button:focus-visible{outline:3px solid #f15b22}
 
 <div class="card">
  <div class="section-title">🌐 IcEfOzxy Topup Website</div>
+
  <button id="websiteBar" class="status-bar gray">
   <span id="websiteLabel">⚪ กำลังตรวจสอบ...</span>
   <span>›</span>
  </button>
+
  <div id="websiteDetails" class="details">
   กำลังตรวจสอบเว็บไซต์...
  </div>
+
  <p class="small" id="lastCheck">ยังไม่มีข้อมูลการตรวจสอบ</p>
 </div>
 
 <div class="card">
  <div class="section-title">🕒 IcEfOzxy Topup Time</div>
+
  <button id="timeBar" class="status-bar gray">
   <span id="timeLabel">กำลังตรวจสอบเวลา...</span>
   <span>›</span>
  </button>
+
  <div id="timeDetails" class="details">
   กำลังคำนวณเวลาทำการ...
  </div>
+
  <p class="small">เวลาทำการ: เสาร์–อาทิตย์ 10:00–19:00 น.</p>
 </div>
 
@@ -79,22 +89,29 @@ button:focus-visible{outline:3px solid #f15b22}
  © 2026 IcEfOzxy Topup<br>
  Angely Foxy Topup 🦊
 </footer>
+
 </div>
 
 <script>
 const SITE =
  "https://icefozxytopup.github.io/IcEfOzxy-TopupSHOP/";
 
+const TIMEZONE = "Asia/Bangkok";
 const $ = id => document.getElementById(id);
 
 function toggleDetails(id){
  $(id).classList.toggle("show");
 }
 
-$("websiteBar").onclick = () => toggleDetails("websiteDetails");
-$("timeBar").onclick = () => toggleDetails("timeDetails");
+$("websiteBar").onclick = () =>
+ toggleDetails("websiteDetails");
 
+$("timeBar").onclick = () =>
+ toggleDetails("timeDetails");
+
+// ตรวจสอบเว็บไซต์ผ่าน AllOrigins JSON API
 async function checkWebsite(){
+
  const bar = $("websiteBar");
  const label = $("websiteLabel");
  const details = $("websiteDetails");
@@ -102,104 +119,205 @@ async function checkWebsite(){
 
  bar.className = "status-bar gray";
  label.textContent = "⚪ กำลังตรวจสอบ...";
- details.innerHTML = "กำลังส่งคำขอตรวจสอบเว็บไซต์...";
+ details.textContent = "กำลังเชื่อมต่อบริการตรวจสอบเว็บไซต์...";
 
  const start = Date.now();
- const timeout = new Promise((_,reject) =>
-  setTimeout(() => reject(new Error("timeout")),10000)
- );
+ const controller = new AbortController();
+ const timer = setTimeout(() => controller.abort(),15000);
 
  try{
-  // ใช้บริการ proxy เพื่ออ่านผลจากเว็บไซต์ข้ามโดเมน
-  const request = fetch(
-   "https://api.allorigins.win/raw?url=" +
-   encodeURIComponent(SITE) +
-   "&t=" + Date.now(),
-   {cache:"no-store"}
-  );
 
-  const response = await Promise.race([request,timeout]);
-  if(!response.ok) throw new Error("proxy-error");
+  const proxyURL =
+   "https://api.allorigins.win/get?url=" +
+   encodeURIComponent(SITE + "?check=" + Date.now());
 
-  const html = await response.text();
-  if(!html || html.length < 50) throw new Error("empty-response");
+  const response = await fetch(proxyURL,{
+   method:"GET",
+   cache:"no-store",
+   signal:controller.signal
+  });
 
-  const seconds = ((Date.now()-start)/1000).toFixed(2);
-
-  bar.className = "status-bar green";
-  label.textContent = "🟢 ใช้งานได้";
-  details.innerHTML =
-   "สถานะ: เว็บไซต์ตอบกลับแล้ว<br>" +
-   "เวลาตอบสนอง: "+seconds+" วินาที<br>" +
-   "ที่อยู่เว็บไซต์: "+SITE+"<br>" +
-   "ผลตรวจนี้ยืนยันการตอบกลับผ่านบริการตรวจสอบ ไม่ใช่การรับประกันว่าทุกฟังก์ชันทำงานปกติ";
-
-  last.textContent = "ตรวจสอบล่าสุด: "+new Date().toLocaleTimeString("th-TH");
-
-  if(Number(seconds)>2.5){
-   bar.className = "status-bar yellow";
-   label.textContent = "🟡 ตอบสนองช้า";
-   details.innerHTML += "<br>เว็บไซต์ตอบกลับช้ากว่าปกติ";
+  if(!response.ok){
+   throw new Error("PROXY_ERROR");
   }
 
+  const data = await response.json();
+
+  if(!data || typeof data.contents !== "string" ||
+     data.contents.length < 50){
+   throw new Error("EMPTY_RESPONSE");
+  }
+
+  const httpCode = Number(data.status?.http_code || 0);
+  const seconds = (Date.now()-start)/1000;
+
+  if(httpCode >= 500){
+   bar.className = "status-bar red";
+   label.textContent = "🔴 เว็บไซต์มีปัญหา";
+
+   details.innerHTML =
+    "เว็บไซต์ตอบกลับด้วย HTTP "+httpCode+
+    "<br>อาจเกิดปัญหาที่เซิร์ฟเวอร์"+
+    "<br>เวลาฟื้นตัว: ยังไม่สามารถคาดการณ์ได้";
+  }
+  else if(httpCode >= 200 && httpCode < 400){
+   if(seconds > 2.5){
+    bar.className = "status-bar yellow";
+    label.textContent = "🟡 เว็บไซต์ตอบสนองช้า";
+   }else{
+    bar.className = "status-bar green";
+    label.textContent = "🟢 ใช้งานได้";
+   }
+
+   details.innerHTML =
+    "สถานะ: เว็บไซต์ตอบกลับสำเร็จ"+
+    "<br>HTTP Status: "+httpCode+
+    "<br>เวลาตอบสนอง: "+seconds.toFixed(2)+" วินาที"+
+    "<br>เว็บไซต์: "+SITE;
+  }
+  else{
+   bar.className = "status-bar yellow";
+   label.textContent = "🟡 สถานะผิดปกติ";
+
+   details.innerHTML =
+    "ได้รับการตอบกลับ แต่ไม่สามารถยืนยันสถานะปกติได้"+
+    "<br>HTTP Status: "+(httpCode || "ไม่ทราบ");
+  }
+
+  last.textContent =
+   "ตรวจสอบล่าสุด: "+new Date().toLocaleTimeString(
+    "th-TH",{timeZone:TIMEZONE}
+   );
+
  }catch(error){
-  bar.className = "status-bar red";
-  label.textContent = "🔴 ตรวจสอบไม่สำเร็จ";
+
+  bar.className = "status-bar yellow";
+  label.textContent = "🟡 ตรวจสอบไม่ได้";
+
+  let reason = "บริการตรวจสอบไม่ตอบสนอง";
+
+  if(error.name === "AbortError"){
+   reason = "หมดเวลารอการตรวจสอบ (Timeout)";
+  }
+  else if(error.message === "EMPTY_RESPONSE"){
+   reason = "บริการตรวจสอบไม่ได้รับเนื้อหาเว็บไซต์";
+  }
+  else if(error.message === "PROXY_ERROR"){
+   reason = "บริการตรวจสอบตอบกลับด้วยข้อผิดพลาด";
+  }
+
   details.innerHTML =
-   "ไม่สามารถยืนยันการเข้าถึงเว็บไซต์ได้<br>" +
-   "สาเหตุอาจมาจากเว็บไซต์หรือบริการตรวจสอบขัดข้อง<br>" +
-   "เวลาที่กลับมาใช้งาน: ยังไม่สามารถคาดการณ์ได้<br>" +
-   "แนะนำให้ลองตรวจสอบอีกครั้ง";
-  last.textContent = "ตรวจสอบล่าสุด: "+new Date().toLocaleTimeString("th-TH");
+   "ไม่สามารถยืนยันสถานะเว็บไซต์ได้"+
+   "<br>สาเหตุ: "+reason+
+   "<br>เว็บไซต์อาจยังใช้งานได้ตามปกติ"+
+   "<br>เวลาที่กลับมา: ไม่สามารถคาดการณ์ได้";
+
+  last.textContent =
+   "ตรวจสอบล่าสุด: "+new Date().toLocaleTimeString(
+    "th-TH",{timeZone:TIMEZONE}
+   );
+
+ }finally{
+  clearTimeout(timer);
  }
 }
 
-function checkTime(){
- const now = new Date();
- const day = now.getDay();
- const hour = now.getHours();
- const minute = now.getMinutes();
- const current = hour*60+minute;
+// อ่านวันและเวลาตามประเทศไทย
+function getThaiTime(){
 
- const opens = day===6 || day===0;
+ const parts = new Intl.DateTimeFormat("en-GB",{
+  timeZone:TIMEZONE,
+  weekday:"short",
+  hour:"2-digit",
+  minute:"2-digit",
+  hourCycle:"h23"
+ }).formatToParts(new Date());
+
+ const get = type => parts.find(p=>p.type===type).value;
+
+ const weekdays = {
+  Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6,Sun:0
+ };
+
+ return {
+  day:weekdays[get("weekday")],
+  hour:Number(get("hour")),
+  minute:Number(get("minute"))
+ };
+}
+
+function checkTime(){
+
+ const now = getThaiTime();
+ const current = now.hour*60+now.minute;
+
+ const isOpenDay = now.day===6 || now.day===0;
  const start = 10*60;
  const end = 19*60;
 
- let status, label, message;
+ let status,label,message;
 
- if(!opens || current<start || current>=end){
+ if(!isOpenDay || current<start || current>=end){
+
   status="red";
   label="🔴 ปิดทำการ";
-  message = !opens
-   ? "วันนี้ไม่ใช่วันทำการ (เปิดเฉพาะวันเสาร์และวันอาทิตย์)"
-   : current<start
-    ? "ร้านจะเปิดเวลา 10:00 น."
-    : "ร้านปิดทำการแล้ววันนี้";
- }else if(current>=18*60){
+
+  if(!isOpenDay){
+   message="วันนี้ไม่ใช่วันทำการ"+
+    "<br>ร้านเปิดเฉพาะวันเสาร์และวันอาทิตย์";
+  }
+  else if(current<start){
+   message="ร้านจะเปิดเวลา 10:00 น.";
+  }
+  else{
+   message="ร้านปิดทำการแล้ววันนี้";
+  }
+
+ }
+ else if(current>=18*60){
+
   status="yellow";
   label="🟡 ใกล้ปิด";
+
   const remaining=end-current;
-  message="เหลือเวลาทำการอีก "+Math.floor(remaining/60)+
-   " ชั่วโมง "+(remaining%60)+" นาที";
- }else{
+
+  message="เหลือเวลาทำการอีก "+
+   Math.floor(remaining/60)+" ชั่วโมง "+
+   (remaining%60)+" นาที";
+
+ }
+ else{
+
   status="green";
   label="🟢 เปิดทำการ";
+
   const remaining=end-current;
-  message="ร้านกำลังเปิดให้บริการ<br>เหลือเวลาทำการอีก "+
-   Math.floor(remaining/60)+" ชั่วโมง "+(remaining%60)+" นาที";
+
+  message="ร้านกำลังเปิดให้บริการ"+
+   "<br>เหลือเวลาทำการอีก "+
+   Math.floor(remaining/60)+" ชั่วโมง "+
+   (remaining%60)+" นาที";
  }
 
  $("timeBar").className="status-bar "+status;
  $("timeLabel").textContent=label;
- $("timeDetails").innerHTML=
-  message+"<br>เวลาปัจจุบัน: "+
-  now.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})+
-  "<br>วัน: "+now.toLocaleDateString("th-TH",{weekday:"long"});
+
+ $("timeDetails").innerHTML =
+  message+
+  "<br>เวลาปัจจุบัน: "+
+  String(now.hour).padStart(2,"0")+":"+
+  String(now.minute).padStart(2,"0")+" น."+
+  "<br>เขตเวลา: ประเทศไทย (UTC+7)";
 }
 
+// เริ่มทำงาน
 checkWebsite();
 checkTime();
+
+// ตรวจเว็บไซต์ทุก 60 วินาที
 setInterval(checkWebsite,60000);
+
+// ตรวจเวลาเปิดร้านทุก 10 วินาที
 setInterval(checkTime,10000);
 </script>
 </body>
